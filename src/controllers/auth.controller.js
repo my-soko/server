@@ -9,8 +9,6 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// Register User
-
 export const registerUser = async (req, res) => {
   try {
     const { fullName, email, password } = req.body;
