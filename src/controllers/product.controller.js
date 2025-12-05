@@ -196,7 +196,10 @@ export const getProductById = async (req, res) => {
 
     if (!product) return res.status(404).json({ message: "Product not found" });
 
-    res.json(product);
+    res.json({
+  ...product,
+  sellerId: product.sellerId,
+});
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Internal server error" });

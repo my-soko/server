@@ -6,6 +6,7 @@ import prisma from './config/prisma.js';
 import authRoute from "./routes/auth.routes.js"
 import productRoute from "./routes/product.routes.js"
 import reviewRoutes from "./routes/review.routes.js"
+import paymentRoutes from "./routes/payment.routes.js"
 
 
 const app = express();
@@ -25,6 +26,7 @@ app.use(express.json());
 app.use("/auth", authRoute);
 app.use("/api/product", productRoute);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/payment", paymentRoutes);
 
 const PORT = process.env.PORT || 5000;
 

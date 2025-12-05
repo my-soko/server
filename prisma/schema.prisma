@@ -14,60 +14,73 @@ datasource db {
 }
 
 model User {
-  id                       String    @id @default(uuid())
-  fullName                 String
-  email                    String    @unique
-  password                 String
-  role                     String    @default("user")
-  whatsappNumber           String?
-  profilePicture           String?
-  emailVerified            Boolean   @default(false)
-  emailVerificationToken   String?   
-  emailVerificationExpiry  DateTime? 
-  passwordResetToken       String?   
-  passwordResetExpiry      DateTime? 
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
+  id                      String    @id @default(uuid())
+  fullName                String
+  email                   String    @unique
+  password                String
+  role                    String    @default("user")
+  whatsappNumber          String?
+  profilePicture          String?
+  emailVerified           Boolean   @default(false)
+  emailVerificationToken  String?
+  emailVerificationExpiry DateTime?
+  passwordResetToken      String?
+  passwordResetExpiry     DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
-  products                 Product[]
-  reviews                  Review[]  // <-- add this line
+  products Product[]
+  reviews  Review[] // <-- add this line
+  Payment  Payment[]
 }
 
-
-
 model Product {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   title         String
   description   String
   price         Float
   discountPrice Float?
   stockInCount  Int
   category      String
-  status        String   @default("onsale") // or "sold"
-  quickSale     Boolean  @default(false)    // highlight for fast sale
+  status        String    @default("onsale") // or "sold"
+  quickSale     Boolean   @default(false) // highlight for fast sale
   imageUrl      String
   images        String[]
   sellerId      String
-  seller        User     @relation(fields: [sellerId], references: [id])
-  createdAt     DateTime @default(now())
+  seller        User      @relation(fields: [sellerId], references: [id])
+  createdAt     DateTime  @default(now())
   reviews       Review[]
+  payments      Payment[]
 }
 
 model Review {
-  id         String   @id @default(uuid())
-  rating     Int      @db.SmallInt // rating from 1 to 5
-  comment    String
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  productId  String
-  product    Product  @relation(fields: [productId], references: [id])
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String    @id @default(uuid())
+  rating    Int       @db.SmallInt // rating from 1 to 5
+  comment   String
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  productId String
+  product   Product   @relation(fields: [productId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  payments  Payment[]
 
   @@unique([userId, productId]) // ensures one review per user per product
 }
 
-
-
-
-
+model Payment {
+  id            String   @id @default(uuid())
+  amount        Float
+  currency      String   @default("KES")
+  status        String   @default("pending") // pending, completed, failed
+  transactionId String? // Mpesa transaction ID
+  checkoutRequestId String? 
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  productId     String? // optional, if payment is linked to a product
+  product       Product? @relation(fields: [productId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  Review        Review?  @relation(fields: [reviewId], references: [id])
+  reviewId      String?
+}
