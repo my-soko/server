@@ -1,0 +1,73 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                       String    @id @default(uuid())
+  fullName                 String
+  email                    String    @unique
+  password                 String
+  role                     String    @default("user")
+  whatsappNumber           String?
+  profilePicture           String?
+  emailVerified            Boolean   @default(false)
+  emailVerificationToken   String?   
+  emailVerificationExpiry  DateTime? 
+  passwordResetToken       String?   
+  passwordResetExpiry      DateTime? 
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  products                 Product[]
+  reviews                  Review[]  // <-- add this line
+}
+
+
+
+model Product {
+  id            String   @id @default(uuid())
+  title         String
+  description   String
+  price         Float
+  discountPrice Float?
+  stockInCount  Int
+  category      String
+  status        String   @default("onsale") // or "sold"
+  quickSale     Boolean  @default(false)    // highlight for fast sale
+  imageUrl      String
+  images        String[]
+  sellerId      String
+  seller        User     @relation(fields: [sellerId], references: [id])
+  createdAt     DateTime @default(now())
+  reviews       Review[]
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  rating     Int      @db.SmallInt // rating from 1 to 5
+  comment    String
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, productId]) // ensures one review per user per product
+}
+
+
+
+
+
