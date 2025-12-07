@@ -60,7 +60,7 @@ export const loginUser = async (req, res) => {
     if (!user.emailVerified) {
       return res.status(401).json({
         success: false,
-        message: "Please verify your email before logging in",
+        message: "Please verify your email before logging in or register your account if not registered.",
       });
     }
 

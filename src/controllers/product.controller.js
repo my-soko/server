@@ -15,6 +15,23 @@ export const createProduct = async (req, res) => {
     } = req.body;
 
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // ADMIN BYPASS PAYMENT
+    if (user.role !== "admin") {
+      // Check if payment exists
+      const payment = await prisma.payment.findFirst({
+        where: { userId: user.id, status: "completed" },
+      });
+
+      if (!payment) {
+        return res.status(403).json({
+          message: "Payment required before posting a product",
+        });
+      }
+    }
+
     if (!user.whatsappNumber) {
       return res.status(400).json({
         message:
@@ -179,7 +196,6 @@ export const getAllProducts = async (req, res) => {
   }
 };
 
-
 // Get Product by ID
 export const getProductById = async (req, res) => {
   try {
@@ -197,9 +213,9 @@ export const getProductById = async (req, res) => {
     if (!product) return res.status(404).json({ message: "Product not found" });
 
     res.json({
-  ...product,
-  sellerId: product.sellerId,
-});
+      ...product,
+      sellerId: product.sellerId,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Internal server error" });
