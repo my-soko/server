@@ -32,6 +32,7 @@ model User {
   products Product[]
   reviews  Review[] // <-- add this line
   Payment  Payment[]
+  favorites   Favourite[]
 }
 
 model Product {
@@ -51,6 +52,7 @@ model Product {
   createdAt     DateTime  @default(now())
   reviews       Review[]
   payments      Payment[]
+  favorites     Favourite[]
 }
 
 model Review {
@@ -79,8 +81,23 @@ model Payment {
   user          User     @relation(fields: [userId], references: [id])
   productId     String? // optional, if payment is linked to a product
   product       Product? @relation(fields: [productId], references: [id])
+  pendingProductData  Json? 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   Review        Review?  @relation(fields: [reviewId], references: [id])
   reviewId      String?
 }
+
+model Favourite {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId]) // prevents duplicate favorites
+}
+
