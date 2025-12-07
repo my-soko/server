@@ -48,13 +48,9 @@ const getAccessToken = async () => {
   }
 };
 
-// Initiate payment (STK Push)
-// controllers/paymentController.js
 export const initiatePayment = async (req, res) => {
   try {
     const { userId, phone, productData } = req.body;
-
-    // Convert productData strings to correct types
     const cleanProductData = {
       title: productData.title,
       description: productData.description,
@@ -62,16 +58,21 @@ export const initiatePayment = async (req, res) => {
       condition: productData.condition,
       brand: productData.brand,
       location: productData.location,
-      price: Number(productData.price), // FIX: convert string to number
+      price: Number(productData.price),
       whatsappNumber: productData.whatsappNumber,
-      imageUrl: productData.imageUrl, // if needed
+      imageUrl: productData.imageUrl,
     };
 
     if (!/^0[1-9]\d{8}$/.test(phone)) {
       return res.status(400).json({ message: "Invalid phone number" });
     }
 
-    const amount = 1; // or from productData.price
+    const basePrice = productData.discountPrice
+      ? Number(productData.discountPrice)
+      : Number(productData.price);
+    let amount = Math.ceil(basePrice * 0.01);
+
+    if (amount < 1) amount = 1;
 
     const payment = await prisma.payment.create({
       data: {
