@@ -48,13 +48,10 @@ const getAccessToken = async () => {
   }
 };
 
-// Initiate payment (STK Push)
-// controllers/paymentController.js
+
 export const initiatePayment = async (req, res) => {
   try {
     const { userId, phone, productData } = req.body;
-
-    // Convert productData strings to correct types
     const cleanProductData = {
       title: productData.title,
       description: productData.description,
@@ -62,9 +59,9 @@ export const initiatePayment = async (req, res) => {
       condition: productData.condition,
       brand: productData.brand,
       location: productData.location,
-      price: Number(productData.price), // FIX: convert string to number
+      price: Number(productData.price), 
       whatsappNumber: productData.whatsappNumber,
-      imageUrl: productData.imageUrl, // if needed
+      imageUrl: productData.imageUrl, 
     };
 
     if (!/^0[1-9]\d{8}$/.test(phone)) {
@@ -124,19 +121,6 @@ export const initiatePayment = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
-};
-
-const uploadToCloudinary = (fileUrlOrBase64) => {
-  return new Promise((resolve, reject) => {
-    cloudinary.uploader.upload(
-      fileUrlOrBase64,
-      { folder: "products" },
-      (error, result) => {
-        if (error) reject(error);
-        else resolve(result.secure_url);
-      }
-    );
-  });
 };
 
 export const mpesaCallback = async (req, res) => {

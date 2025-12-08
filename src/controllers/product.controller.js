@@ -8,10 +8,12 @@ export const createProduct = async (req, res) => {
       description,
       price,
       category,
+      brand,
       discountPrice,
       stockInCount,
       status,
       quickSale,
+      condition,
     } = req.body;
 
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
@@ -72,10 +74,12 @@ export const createProduct = async (req, res) => {
         description,
         price: parseFloat(price),
         category,
+        brand,
         discountPrice: discountPrice ? parseFloat(discountPrice) : null,
         stockInCount: parseInt(stockInCount),
         status: status || "onsale",
         quickSale: quickSale === "true",
+        condition: condition || "BRAND_NEW",
         imageUrl: coverImage,
         images,
         seller: {
@@ -111,10 +115,12 @@ export const updateProduct = async (req, res) => {
       description,
       price,
       category,
+      brand,
       discountPrice,
       stockInCount,
       status,
       quickSale,
+      condition,
     } = req.body;
 
     let imageUrl;
@@ -148,10 +154,12 @@ export const updateProduct = async (req, res) => {
         description,
         price: price ? parseFloat(price) : undefined,
         category,
+        brand,
         discountPrice: discountPrice ? parseFloat(discountPrice) : undefined,
         stockInCount: stockInCount ? parseInt(stockInCount) : undefined,
         status: status || undefined,
         quickSale: quickSale ? quickSale === "true" : undefined,
+        condition: condition || undefined,
         ...(imageUrl && { imageUrl }),
         ...(images.length > 0 && { images }),
       },

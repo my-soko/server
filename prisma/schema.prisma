@@ -35,6 +35,13 @@ model User {
   favorites   Favourite[]
 }
 
+enum Condition {
+  BRAND_NEW
+  SLIGHTLY_USED
+  REFURBISHED
+}
+
+
 model Product {
   id            String    @id @default(uuid())
   title         String
@@ -43,8 +50,10 @@ model Product {
   discountPrice Float?
   stockInCount  Int
   category      String
-  status        String    @default("onsale") // or "sold"
-  quickSale     Boolean   @default(false) // highlight for fast sale
+  brand         String?
+  status        String    @default("onsale")
+  quickSale     Boolean   @default(false)
+  condition     Condition @default(BRAND_NEW)
   imageUrl      String
   images        String[]
   sellerId      String
