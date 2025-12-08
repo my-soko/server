@@ -1,6 +1,6 @@
 import express from "express";
-import { fetchProfile, forgotPassword, googleLogin, loginUser, logoutUser, registerUser, resetPassword, updateProfile, verifyEmail } from "../controllers/auth.controller.js";
-import { authMiddleware } from "../middleware/auth.middleware.js";
+import { adminUpdateUser, deleteUser, fetchProfile, forgotPassword, getAllUsers, googleLogin, loginUser, logoutUser, registerUser, resetPassword, updateProfile, verifyEmail } from "../controllers/auth.controller.js";
+import { adminOnly, authMiddleware } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
@@ -13,4 +13,8 @@ router.post("/reset-password", resetPassword);
 router.get("/verify-email/:token", verifyEmail);
 router.post("/logout", authMiddleware, logoutUser );
 router.post("/google-login", googleLogin);
+
+router.get("/users", authMiddleware, adminOnly, getAllUsers);
+router.put("/users/:id", authMiddleware, adminOnly, adminUpdateUser);
+router.delete("/users/:id", authMiddleware, adminOnly, deleteUser);
 export default router;

@@ -276,8 +276,8 @@ export const googleLogin = async (req, res) => {
           fullName: name,
           email,
           password: await hashPassword(crypto.randomBytes(16).toString("hex")), // random password
-          profilePicture: picture || "", // store Google profile picture
-          emailVerified: true, // mark as verified since Google account is verified
+          profilePicture: picture || "",
+          emailVerified: true, 
           role: "USER",
         },
       });
@@ -315,6 +315,60 @@ export const googleLogin = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+export const getAllUsers = async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        role: true,
+        profilePicture: true,
+        whatsappNumber: true,
+        emailVerified: true,
+        createdAt: true
+      }
+    });
+
+    return res.json({ success: true, users });
+  } catch (error) {
+    console.error("Get users error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const adminUpdateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { fullName, email, role, whatsappNumber } = req.body;
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: { fullName, email, role, whatsappNumber }
+    });
+
+    return res.json({ success: true, user: updated });
+  } catch (error) {
+    console.error("Admin update error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await prisma.user.delete({ where: { id } });
+
+    res.json({ success: true, message: "User deleted successfully" });
+  } catch (error) {
+    console.error("Delete user error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
 
 
 // Logout User

@@ -91,12 +91,21 @@ export const createProduct = async (req, res) => {
   }
 };
 
-// Update Product
 export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // For multipart/form-data
+    const product = await prisma.product.findUnique({ where: { id } });
+    if (!product) return res.status(404).json({ message: "Product not found" });
+
+    // Only allow owner or admin
+    if (product.sellerId !== req.user.id) {
+      const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+    }
+
     const {
       title,
       description,
@@ -112,8 +121,8 @@ export const updateProduct = async (req, res) => {
     let images = [];
 
     if (req.files && req.files.length > 0) {
-      const uploadToCloudinary = (fileBuffer) => {
-        return new Promise((resolve, reject) => {
+      const uploadToCloudinary = (fileBuffer) =>
+        new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload_stream(
             { folder: "products" },
             (error, result) => {
@@ -123,7 +132,6 @@ export const updateProduct = async (req, res) => {
           );
           stream.end(fileBuffer);
         });
-      };
 
       const uploadedImages = await Promise.all(
         req.files.map((file) => uploadToCloudinary(file.buffer))
@@ -156,8 +164,7 @@ export const updateProduct = async (req, res) => {
   }
 };
 
-// Get All Products
-// Get All Products
+
 export const getAllProducts = async (req, res) => {
   try {
     const products = await prisma.product.findMany({
@@ -229,7 +236,7 @@ export const generateWhatsappLink = (product) => {
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 };
 
-// DELETE PRODUCT
+
 export const deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
@@ -237,9 +244,12 @@ export const deleteProduct = async (req, res) => {
     const product = await prisma.product.findUnique({ where: { id } });
     if (!product) return res.status(404).json({ message: "Product not found" });
 
-    // Ensure only seller deletes their product
+    // Only allow owner or admin
     if (product.sellerId !== req.user.id) {
-      return res.status(403).json({ message: "Unauthorized" });
+      const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
     }
 
     await prisma.product.delete({ where: { id } });
@@ -250,3 +260,4 @@ export const deleteProduct = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
