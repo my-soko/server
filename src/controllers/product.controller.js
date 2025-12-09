@@ -77,6 +77,7 @@ export const createProduct = async (req, res) => {
         brand,
         discountPrice: discountPrice ? parseFloat(discountPrice) : null,
         stockInCount: parseInt(stockInCount),
+        stockTotal: parseInt(stockInCount),
         status: status || "onsale",
         quickSale: quickSale === "true",
         condition: condition || "BRAND_NEW",

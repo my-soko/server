@@ -49,6 +49,7 @@ model Product {
   price         Float
   discountPrice Float?
   stockInCount  Int
+  stockTotal    Int? 
   category      String
   brand         String?
   status        String    @default("onsale")
