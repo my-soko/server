@@ -198,3 +198,63 @@ export const checkPaymentStatus = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+export const getAllPayments = async (req, res) => {
+  try {
+    const payments = await prisma.payment.findMany({
+      include: {
+        user: {
+          select: {
+            fullName: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    res.json(payments);
+  } catch (error) {
+    console.error("Error fetching payments:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// controllers/payment.controller.js
+export const deletePaymentById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const payment = await prisma.payment.findUnique({ where: { id } });
+
+    if (!payment) return res.status(404).json({ message: "Payment not found" });
+
+    await prisma.payment.delete({ where: { id } });
+    res.json({ message: "Payment deleted successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const updatePaymentStatusById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const payment = await prisma.payment.findUnique({ where: { id } });
+    if (!payment) return res.status(404).json({ message: "Payment not found" });
+
+    const updatedPayment = await prisma.payment.update({
+      where: { id },
+      data: { status },
+    });
+
+    res.json(updatedPayment);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+

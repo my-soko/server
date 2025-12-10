@@ -101,14 +101,27 @@ export const updateProduct = async (req, res) => {
     const { id } = req.params;
 
     const product = await prisma.product.findUnique({ where: { id } });
-    if (!product) return res.status(404).json({ message: "Product not found" });
+    if (!product) {
+      console.log(`[UPDATE] Product not found: ${id}`);
+      return res.status(404).json({ message: "Product not found" });
+    }
 
     // Only allow owner or admin
     if (product.sellerId !== req.user.id) {
       const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+      console.log(
+        `[UPDATE] User trying to update product ${id}:`,
+        user ? user.id : "Not found",
+        "Role:",
+        user?.role
+      );
+
       if (!user || user.role !== "admin") {
+        console.log(`[UPDATE] Unauthorized update attempt by user ${req.user.id}`);
         return res.status(403).json({ message: "Unauthorized" });
       }
+    } else {
+      console.log(`[UPDATE] Owner updating product ${id}: ${req.user.id}`);
     }
 
     const {
@@ -124,30 +137,6 @@ export const updateProduct = async (req, res) => {
       condition,
     } = req.body;
 
-    let imageUrl;
-    let images = [];
-
-    if (req.files && req.files.length > 0) {
-      const uploadToCloudinary = (fileBuffer) =>
-        new Promise((resolve, reject) => {
-          const stream = cloudinary.uploader.upload_stream(
-            { folder: "products" },
-            (error, result) => {
-              if (error) reject(error);
-              else resolve(result.secure_url);
-            }
-          );
-          stream.end(fileBuffer);
-        });
-
-      const uploadedImages = await Promise.all(
-        req.files.map((file) => uploadToCloudinary(file.buffer))
-      );
-
-      imageUrl = uploadedImages[0];
-      images = uploadedImages.slice(1);
-    }
-
     const updated = await prisma.product.update({
       where: { id },
       data: {
@@ -161,17 +150,17 @@ export const updateProduct = async (req, res) => {
         status: status || undefined,
         quickSale: quickSale ? quickSale === "true" : undefined,
         condition: condition || undefined,
-        ...(imageUrl && { imageUrl }),
-        ...(images.length > 0 && { images }),
       },
     });
 
+    console.log(`[UPDATE] Product ${id} updated successfully by user ${req.user.id}`);
     res.json({ message: "Product updated", product: updated });
   } catch (error) {
-    console.error(error);
+    console.error("[UPDATE] Internal server error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 
 export const getAllProducts = async (req, res) => {
@@ -251,22 +240,36 @@ export const deleteProduct = async (req, res) => {
     const { id } = req.params;
 
     const product = await prisma.product.findUnique({ where: { id } });
-    if (!product) return res.status(404).json({ message: "Product not found" });
+    if (!product) {
+      console.log(`[DELETE] Product not found: ${id}`);
+      return res.status(404).json({ message: "Product not found" });
+    }
 
     // Only allow owner or admin
     if (product.sellerId !== req.user.id) {
       const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+      console.log(
+        `[DELETE] User trying to delete product ${id}:`,
+        user ? user.id : "Not found",
+        "Role:",
+        user?.role
+      );
+
       if (!user || user.role !== "admin") {
+        console.log(`[DELETE] Unauthorized delete attempt by user ${req.user.id}`);
         return res.status(403).json({ message: "Unauthorized" });
       }
+    } else {
+      console.log(`[DELETE] Owner deleting product ${id}: ${req.user.id}`);
     }
 
     await prisma.product.delete({ where: { id } });
-
+    console.log(`[DELETE] Product ${id} deleted successfully by user ${req.user.id}`);
     res.json({ message: "Product deleted", id });
   } catch (error) {
-    console.error(error);
+    console.error("[DELETE] Internal server error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
