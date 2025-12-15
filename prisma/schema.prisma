@@ -80,6 +80,7 @@ model Review {
   @@unique([userId, productId])
 }
 
+
 model Payment {
   id            String   @id @default(uuid())
   amount        Float
