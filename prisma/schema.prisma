@@ -52,6 +52,7 @@ model Product {
   stockTotal    Int? 
   category      String
   brand         String?
+  warranty      String?
   status        String    @default("onsale")
   quickSale     Boolean   @default(false)
   condition     Condition @default(BRAND_NEW)
