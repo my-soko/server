@@ -15,14 +15,23 @@ export const createReview = async (req, res) => {
       return res.status(400).json({ message: "You have already reviewed this product." });
     }
 
-    const review = await prisma.review.create({
-      data: {
-        rating,
-        comment,
-        userId,
-        productId,
+ const review = await prisma.review.create({
+  data: {
+    rating,
+    comment,
+    userId,
+    productId,
+  },
+  include: {
+    user: {
+      select: {
+        fullName: true,
+        profilePicture: true,
       },
-    });
+    },
+  },
+});
+
 
     res.status(201).json({ message: "Review submitted successfully", review });
   } catch (error) {

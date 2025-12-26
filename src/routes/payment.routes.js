@@ -1,13 +1,21 @@
-
 import express from "express";
-import { checkPaymentStatus, initiatePayment, mpesaCallback } from "../controllers/payment.controller.js";
-
+import {
+  checkPaymentStatus,
+  deletePaymentById,
+  getAllPayments,
+  initiatePayment,
+  mpesaCallback,
+  updatePaymentStatusById,
+} from "../controllers/payment.controller.js";
 
 const router = express.Router();
 
 router.post("/initiate", initiatePayment);
 router.post("/callback", mpesaCallback);
-router.get("/status/:checkoutRequestId", checkPaymentStatus);  
+router.get("/status/:checkoutRequestId", checkPaymentStatus);
+router.get("/", getAllPayments);
+router.delete("/:id", deletePaymentById);
+router.put("/:id", updatePaymentStatusById);
 
 
 export default router;

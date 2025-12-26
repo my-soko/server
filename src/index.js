@@ -8,6 +8,7 @@ import productRoute from "./routes/product.routes.js"
 import reviewRoutes from "./routes/review.routes.js"
 import paymentRoutes from "./routes/payment.routes.js"
 import favouriteRoutes from "./routes/favourite.routes.js"
+import uploadRouter from "./routes/upload.js"
 
 
 const app = express();
@@ -29,6 +30,7 @@ app.use("/api/product", productRoute);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/favourite", favouriteRoutes);
+app.use("/api/upload", uploadRouter);
 
 const PORT = process.env.PORT || 5000;
 

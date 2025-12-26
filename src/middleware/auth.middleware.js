@@ -5,10 +5,8 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 export const authMiddleware = (req, res, next) => {
   try {
-    // Check token in cookies
     let token = req.cookies?.token;
 
-    // If not in cookies, check Authorization header
     if (!token && req.headers.authorization?.startsWith("Bearer ")) {
       token = req.headers.authorization.split(" ")[1];
     }
@@ -18,7 +16,7 @@ export const authMiddleware = (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded; // attach user info to request
+    req.user = decoded;
 
     next();
   } catch (error) {

@@ -49,8 +49,10 @@ model Product {
   price         Float
   discountPrice Float?
   stockInCount  Int
+  stockTotal    Int? 
   category      String
   brand         String?
+  warranty      String?
   status        String    @default("onsale")
   quickSale     Boolean   @default(false)
   condition     Condition @default(BRAND_NEW)
@@ -66,30 +68,31 @@ model Product {
 
 model Review {
   id        String    @id @default(uuid())
-  rating    Int       @db.SmallInt // rating from 1 to 5
+  rating    Int       @db.SmallInt
   comment   String
   userId    String
   user      User      @relation(fields: [userId], references: [id])
   productId String
-  product   Product   @relation(fields: [productId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)  // ✅ cascade here
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   payments  Payment[]
 
-  @@unique([userId, productId]) // ensures one review per user per product
+  @@unique([userId, productId])
 }
+
 
 model Payment {
   id            String   @id @default(uuid())
   amount        Float
   currency      String   @default("KES")
-  status        String   @default("pending") // pending, completed, failed
-  transactionId String? // Mpesa transaction ID
+  status        String   @default("pending")
+  transactionId String?
   checkoutRequestId String? 
   userId        String
   user          User     @relation(fields: [userId], references: [id])
-  productId     String? // optional, if payment is linked to a product
-  product       Product? @relation(fields: [productId], references: [id])
+  productId     String?
+  product       Product? @relation(fields: [productId], references: [id], onDelete: Cascade)  // ✅ cascade here
   pendingProductData  Json? 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -101,12 +104,10 @@ model Favourite {
   id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-
   productId String
-  product   Product  @relation(fields: [productId], references: [id])
-
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)  // ✅ cascade here
   createdAt DateTime @default(now())
 
-  @@unique([userId, productId]) // prevents duplicate favorites
+  @@unique([userId, productId])
 }
 
