@@ -1,6 +1,25 @@
 import prisma from "../config/prisma.js";
 import cloudinary from "../config/cloudinary.js";
 
+const uploadToCloudinary = (fileBuffer) =>
+  new Promise((resolve, reject) => {
+    cloudinary.uploader
+      .upload_stream({ folder: "products" }, (error, result) => {
+        if (error) reject(error);
+        else resolve(result.secure_url);
+      })
+      .end(fileBuffer);
+  });
+
+const getPublicIdFromUrl = (url) => {
+  const parts = url.split("/upload/");
+  if (parts.length < 2) return "";
+  const afterUpload = parts[1];
+  const versionEndIndex = afterUpload.indexOf("/");
+  if (versionEndIndex === -1) return "";
+  return afterUpload.substring(versionEndIndex + 1).replace(/\.[^.]+$/, ""); // remove extension
+};
+
 export const createProduct = async (req, res) => {
   try {
     const {
@@ -15,121 +34,96 @@ export const createProduct = async (req, res) => {
       status,
       quickSale,
       condition,
+      imageUrls,
     } = req.body;
 
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // ADMIN BYPASS PAYMENT
     if (user.role !== "admin") {
-      // Check if payment exists
       const payment = await prisma.payment.findFirst({
         where: { userId: user.id, status: "completed" },
       });
-
-      if (!payment) {
-        return res.status(403).json({
-          message: "Payment required before posting a product",
-        });
-      }
+      if (!payment)
+        return res
+          .status(403)
+          .json({ message: "Payment required before posting a product" });
     }
 
-    if (!user.whatsappNumber) {
+    if (!user.whatsappNumber)
       return res.status(400).json({
         message:
           "Please update your profile with your WhatsApp number before posting a product.",
       });
-    }
 
-    if (!req.files || req.files.length === 0) {
+    const normalizedImageUrls = Array.isArray(imageUrls)
+      ? imageUrls
+      : imageUrls
+      ? [imageUrls]
+      : [];
+
+    if (!normalizedImageUrls.length && (!req.files || req.files.length === 0)) {
       return res
         .status(400)
         .json({ message: "Please upload at least one image." });
     }
 
-    const uploadToCloudinary = (fileBuffer) => {
-      return new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { folder: "products" },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result.secure_url);
-          }
-        );
-        stream.end(fileBuffer);
-      });
-    };
+    // Upload any files sent via multipart/form-data
+    let finalImages = [...normalizedImageUrls];
+    if (req.files && req.files.length > 0) {
+      const uploaded = await Promise.all(
+        req.files.map((file) => uploadToCloudinary(file.buffer))
+      );
+      finalImages.push(...uploaded);
+    }
 
-    // Then:
-    const uploadedImages = await Promise.all(
-      req.files.map((file) => uploadToCloudinary(file.buffer))
-    );
-
-    const coverImage = uploadedImages[0];
-    const images = uploadedImages.slice(1); // string array
+    const coverImage = finalImages[0];
+    const galleryImages = finalImages.slice(1);
 
     const product = await prisma.product.create({
       data: {
-        title,
-        description,
-        price: parseFloat(price),
+        title: title.trim(),
+        description: description.trim(),
+        price: Number(price),
+        discountPrice: discountPrice ? Number(discountPrice) : null,
+        stockInCount: Number(stockInCount),
+        stockTotal: Number(stockInCount),
         category,
         brand,
         warranty: warranty || null,
-        discountPrice: discountPrice ? parseFloat(discountPrice) : null,
-        stockInCount: parseInt(stockInCount),
-        stockTotal: parseInt(stockInCount),
         status: status || "onsale",
-        quickSale: quickSale === "true",
+        quickSale: Boolean(quickSale),
         condition: condition || "BRAND_NEW",
         imageUrl: coverImage,
-        images,
-        seller: {
-          connect: { id: user.id },
-        },
+        images: galleryImages,
+        seller: { connect: { id: user.id } },
       },
     });
 
-    res.status(201).json({ message: "Product created", product });
+    return res.status(201).json({
+      message: "Product created successfully",
+      product,
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("[CREATE PRODUCT ERROR]", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 
 export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-
     const product = await prisma.product.findUnique({ where: { id } });
-    if (!product) {
-      console.log(`[UPDATE] Product not found: ${id}`);
-      return res.status(404).json({ message: "Product not found" });
-    }
+    if (!product) return res.status(404).json({ message: "Product not found" });
 
-    // Only allow owner or admin
-    if (product.sellerId !== req.user.id) {
-      const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-      console.log(
-        `[UPDATE] User trying to update product ${id}:`,
-        user ? user.id : "Not found",
-        "Role:",
-        user?.role
-      );
-
-      if (!user || user.role !== "admin") {
-        console.log(`[UPDATE] Unauthorized update attempt by user ${req.user.id}`);
-        return res.status(403).json({ message: "Unauthorized" });
-      }
-    } else {
-      console.log(`[UPDATE] Owner updating product ${id}: ${req.user.id}`);
+    // Authorization
+    if (product.sellerId !== req.user.id && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized" });
     }
 
     const {
       title,
       description,
-      price,
       category,
       brand,
       warranty,
@@ -138,34 +132,98 @@ export const updateProduct = async (req, res) => {
       status,
       quickSale,
       condition,
+      removeImages, // array of image URLs to delete
     } = req.body;
 
-    const updated = await prisma.product.update({
+    let finalGallery = product.images || [];
+    let finalCover = product.imageUrl;
+
+    // === STEP 1: Handle image removals (delete from Cloudinary + DB) ===
+    const removeImagesArray = removeImages
+      ? Array.isArray(removeImages)
+        ? removeImages
+        : JSON.parse(removeImages)
+      : [];
+
+    if (removeImagesArray.length > 0) {
+      // Delete from Cloudinary
+      const deletePromises = removeImagesArray.map((url) => {
+        const publicId = getPublicIdFromUrl(url);
+        if (!publicId) {
+          console.warn(`[UPDATE] Could not extract public_id from URL: ${url}`);
+          return Promise.resolve();
+        }
+        return cloudinary.uploader.destroy(publicId, { invalidate: true });
+      });
+
+      try {
+        await Promise.all(deletePromises);
+        console.log(
+          `[UPDATE] Deleted ${removeImagesArray.length} images from Cloudinary`
+        );
+      } catch (cloudError) {
+        console.error(
+          "[UPDATE] Failed to delete some images from Cloudinary:",
+          cloudError
+        );
+      }
+
+      finalGallery = finalGallery.filter(
+        (img) => !removeImagesArray.includes(img)
+      );
+
+      if (removeImagesArray.includes(finalCover)) {
+        finalCover = finalGallery.length > 0 ? finalGallery[0] : null;
+      }
+    }
+    if (req.files && req.files.length > 0) {
+      const uploadedUrls = await Promise.all(
+        req.files.map((file) => uploadToCloudinary(file.buffer))
+      );
+
+      finalGallery = [...finalGallery, ...uploadedUrls];
+      if (!finalCover && uploadedUrls.length > 0) {
+        finalCover = uploadedUrls[0];
+      }
+    }
+
+    if (!finalCover && finalGallery.length > 0) {
+      finalCover = finalGallery[0];
+    }
+
+    if (!finalCover && finalGallery.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Product must have at least one image." });
+    }
+
+    const updatedProduct = await prisma.product.update({
       where: { id },
       data: {
-        title,
-        description,
-        price: price ? parseFloat(price) : undefined,
-        category,
-        brand,
-        warranty: warranty !== undefined ? warranty : undefined,
-        discountPrice: discountPrice ? parseFloat(discountPrice) : undefined,
-        stockInCount: stockInCount ? parseInt(stockInCount) : undefined,
+        title: title?.trim() || undefined,
+        description: description?.trim() || undefined,
+        category: category || undefined,
+        brand: brand || undefined,
+        warranty: warranty || null,
+        discountPrice: discountPrice ? parseFloat(discountPrice) : null,
+        stockInCount: stockInCount ? parseInt(stockInCount, 10) : undefined,
         status: status || undefined,
-        quickSale: quickSale ? quickSale === "true" : undefined,
+        quickSale: quickSale === "true" || quickSale === true,
         condition: condition || undefined,
+        imageUrl: finalCover,
+        images: finalGallery,
       },
     });
 
-    console.log(`[UPDATE] Product ${id} updated successfully by user ${req.user.id}`);
-    res.json({ message: "Product updated", product: updated });
+    return res.json({
+      message: "Product updated successfully",
+      product: updatedProduct,
+    });
   } catch (error) {
-    console.error("[UPDATE] Internal server error:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("[UPDATE PRODUCT ERROR]:", error);
+    return res.status(500).json({ message: "Failed to update product" });
   }
 };
-
-
 
 export const getAllProducts = async (req, res) => {
   try {
@@ -175,7 +233,7 @@ export const getAllProducts = async (req, res) => {
           select: { fullName: true, email: true, whatsappNumber: true },
         },
         reviews: {
-          select: { rating: true }, // Only ratings needed for average
+          select: { rating: true },
         },
       },
     });
@@ -205,7 +263,6 @@ export const getAllProducts = async (req, res) => {
   }
 };
 
-// Get Product by ID
 export const getProductById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -231,13 +288,11 @@ export const getProductById = async (req, res) => {
   }
 };
 
-// WhatsApp link for contacting seller
 export const generateWhatsappLink = (product) => {
-  const phone = product.seller.email; // ideally, store seller phone in User model
+  const phone = product.seller.email;
   const text = `Hi, I'm interested in your product: ${product.title}\nDescription: ${product.description}\nPrice: $${product.price}\nImage: ${product.imageUrl}`;
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 };
-
 
 export const deleteProduct = async (req, res) => {
   try {
@@ -247,6 +302,22 @@ export const deleteProduct = async (req, res) => {
     if (!product) {
       console.log(`[DELETE] Product not found: ${id}`);
       return res.status(404).json({ message: "Product not found" });
+    }
+
+    if (product.imageUrl) {
+      const coverId = getPublicIdFromUrl(product.imageUrl);
+      if (coverId)
+        await cloudinary.uploader.destroy(coverId, { invalidate: true });
+    }
+
+    if (product.images?.length > 0) {
+      const galleryDeletes = product.images.map((url) => {
+        const pid = getPublicIdFromUrl(url);
+        return pid
+          ? cloudinary.uploader.destroy(pid, { invalidate: true })
+          : null;
+      });
+      await Promise.all(galleryDeletes.filter(Boolean));
     }
 
     // Only allow owner or admin
@@ -260,7 +331,9 @@ export const deleteProduct = async (req, res) => {
       );
 
       if (!user || user.role !== "admin") {
-        console.log(`[DELETE] Unauthorized delete attempt by user ${req.user.id}`);
+        console.log(
+          `[DELETE] Unauthorized delete attempt by user ${req.user.id}`
+        );
         return res.status(403).json({ message: "Unauthorized" });
       }
     } else {
@@ -268,12 +341,12 @@ export const deleteProduct = async (req, res) => {
     }
 
     await prisma.product.delete({ where: { id } });
-    console.log(`[DELETE] Product ${id} deleted successfully by user ${req.user.id}`);
+    console.log(
+      `[DELETE] Product ${id} deleted successfully by user ${req.user.id}`
+    );
     res.json({ message: "Product deleted", id });
   } catch (error) {
     console.error("[DELETE] Internal server error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
-

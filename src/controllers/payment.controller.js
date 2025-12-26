@@ -1,8 +1,7 @@
-// controllers/paymentController.js
 import axios from "axios";
 import dotenv from "dotenv";
 import prisma from "../config/prisma.js";
-import cloudinary from "../config/cloudinary.js";
+
 dotenv.config();
 
 const {
@@ -48,7 +47,6 @@ const getAccessToken = async () => {
   }
 };
 
-
 export const initiatePayment = async (req, res) => {
   try {
     const { userId, phone, productData } = req.body;
@@ -59,16 +57,32 @@ export const initiatePayment = async (req, res) => {
       condition: productData.condition,
       brand: productData.brand,
       location: productData.location,
-      price: Number(productData.price), 
+      warranty: productData.warranty || null,
+      price: Number(productData.price),
+      discountPrice: productData.discountPrice ? Number(productData.discountPrice) : null,
       whatsappNumber: productData.whatsappNumber,
-      imageUrl: productData.imageUrl, 
+      stockInCount: Number(productData.stockInCount) || 1,
+      imageUrl: productData.imageUrl,
+      imageUrls: Array.isArray(productData.imageUrls)
+        ? productData.imageUrls
+        : [],
     };
 
     if (!/^0[1-9]\d{8}$/.test(phone)) {
       return res.status(400).json({ message: "Invalid phone number" });
     }
 
-    const amount = 1; // or from productData.price
+    const effectivePrice =
+      productData.discountPrice && productData.discountPrice > 0
+        ? Number(productData.discountPrice)
+        : Number(productData.price);
+
+    if (!effectivePrice || effectivePrice <= 0) {
+      return res.status(400).json({ message: "Invalid product price" });
+    }
+
+    const amount = Math.max(10, Math.ceil(effectivePrice * 0.01));
+    // amount = 1;
 
     const payment = await prisma.payment.create({
       data: {
@@ -78,8 +92,6 @@ export const initiatePayment = async (req, res) => {
         pendingProductData: cleanProductData,
       },
     });
-
-    console.log("PRODUCT DATA RECEIVED:", cleanProductData);
 
     const formattedPhone = `254${phone.slice(-9)}`;
     const { password, timestamp } = generateSTKPassword();
@@ -96,7 +108,7 @@ export const initiatePayment = async (req, res) => {
       PhoneNumber: formattedPhone,
       CallBackURL: MPESA_CALLBACK_URL,
       AccountReference: `Payment_${payment.id}`,
-      TransactionDesc: "Product Posting Payment",
+      TransactionDesc: "Product Posting Fee (1%)",
     };
 
     const { data } = await axios.post(
@@ -125,55 +137,96 @@ export const initiatePayment = async (req, res) => {
 
 export const mpesaCallback = async (req, res) => {
   try {
-    const stk = req.body?.Body?.stkCallback;
-    if (!stk) return res.sendStatus(400);
+    // Safely extract STK callback data
+    const stkCallback = req.body?.Body?.stkCallback;
+    if (!stkCallback) {
+      console.log("Invalid callback: Missing stkCallback");
+      return res.sendStatus(400);
+    }
 
-    const { ResultCode, CheckoutRequestID } = stk;
+    const { ResultCode, CheckoutRequestID } = stkCallback;
 
+    if (!CheckoutRequestID) {
+      console.log("Invalid callback: Missing CheckoutRequestID");
+      return res.sendStatus(400);
+    }
+
+    // Find the corresponding payment record
     const payment = await prisma.payment.findFirst({
       where: { checkoutRequestId: CheckoutRequestID },
     });
-    if (!payment) return res.sendStatus(404);
 
+    if (!payment) {
+      console.log(`Payment not found for CheckoutRequestID: ${CheckoutRequestID}`);
+      return res.sendStatus(404);
+    }
+
+    // Handle successful payment
     if (ResultCode === 0) {
+      console.log(`Payment successful for payment ID: ${payment.id}`);
+
+      // Update payment status
       await prisma.payment.update({
         where: { id: payment.id },
         data: { status: "completed" },
       });
 
-      // Create product automatically
+      // Create product automatically if pending data exists
       if (payment.pendingProductData) {
-        await prisma.product.create({
-          data: {
-            title: payment.pendingProductData.title,
-            description: payment.pendingProductData.description,
-            price: Number(payment.pendingProductData.price),
-            category: payment.pendingProductData.category,
-            stockInCount: payment.pendingProductData.stockInCount,
-            imageUrl:
-              payment.pendingProductData.imageUrl || "default_image_url",
-            seller: { connect: { id: payment.userId } },
-            discountPrice: payment.pendingProductData.discountPrice
-              ? Number(payment.pendingProductData.discountPrice)
-              : null,
-            status: "onsale",
-            quickSale: false,
-            images: payment.pendingProductData.images || [],
-          },
-        });
+        const pending = payment.pendingProductData;
+
+        // Extract image URLs safely
+        const imageUrls = Array.isArray(pending.imageUrls) ? pending.imageUrls : [];
+
+        const coverImage = imageUrls.length > 0 
+          ? imageUrls[0] 
+          : "https://via.placeholder.com/500x500.png?text=No+Image";
+
+        const galleryImages = imageUrls.length > 1 ? imageUrls.slice(1) : [];
+
+        try {
+          await prisma.product.create({
+            data: {
+              title: pending.title || "Untitled Product",
+              description: pending.description || "",
+              price: Number(pending.price) || 0,
+              category: pending.category || "UNCATEGORIZED",
+              condition: pending.condition || "BRAND_NEW",
+              brand: pending.brand || null,
+              warranty: pending.warranty || null,
+              discountPrice: pending.discountPrice ? Number(pending.discountPrice) : null,
+              stockInCount: Number(pending.stockInCount) || 1,
+              stockTotal: Number(pending.stockInCount) || 1,
+              status: "onsale",
+              quickSale: false,
+              imageUrl: coverImage,
+              images: galleryImages,
+              seller: { connect: { id: payment.userId } },
+            },
+          });
+
+          console.log(`Product created successfully for user ${payment.userId}`);
+        } catch (productError) {
+          console.error("Failed to create product after payment:", productError);
+          // Don't fail the callback — payment was successful
+        }
       }
     } else {
-      // Only mark payment as completed
+      // Payment failed or was cancelled
+      console.log(`Payment failed for CheckoutRequestID: ${CheckoutRequestID}, ResultCode: ${ResultCode}`);
+
       await prisma.payment.update({
         where: { id: payment.id },
-        data: { status: "completed" },
+        data: { status: "failed" },
       });
     }
 
+    // Always respond with 200 to acknowledge receipt
     res.sendStatus(200);
-  } catch (e) {
-    console.error(e);
-    res.sendStatus(500);
+  } catch (error) {
+    console.error("Error in mpesaCallback:", error);
+    // Still respond with 200 to prevent M-Pesa from retrying excessively
+    res.sendStatus(200);
   }
 };
 
@@ -257,4 +310,3 @@ export const updatePaymentStatusById = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
