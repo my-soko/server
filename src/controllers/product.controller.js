@@ -37,7 +37,8 @@ export const createProduct = async (req, res) => {
       imageUrls,
       productType,
       shopAddress,
-     
+      latitude,
+      longitude,
     } = req.body;
 
     const user = await prisma.user.findUnique({
@@ -51,13 +52,13 @@ export const createProduct = async (req, res) => {
       return res.status(400).json({ message: "Invalid product type" });
     }
 
-    if (productType === "SHOP") {
-      if (!shopAddress) {
-        return res.status(400).json({
-          message: "Shop location (address + coordinates) is required",
-        });
-      }
-    }
+   if (productType === "SHOP") {
+  if (latitude == null || longitude == null) {
+    return res.status(400).json({
+      message: "Shop location coordinates are required",
+    });
+  }
+}
 
     if (user.role !== "admin") {
       const payment = await prisma.payment.findFirst({
@@ -115,6 +116,8 @@ export const createProduct = async (req, res) => {
         condition: condition || "BRAND_NEW",
         productType,
         shopAddress: productType === "SHOP" ? shopAddress : null,
+        latitude: productType === "SHOP" ? Number(latitude) : null,
+        longitude: productType === "SHOP" ? Number(longitude) : null,
         imageUrl: coverImage,
         images: galleryImages,
         seller: { connect: { id: user.id } },
@@ -130,7 +133,6 @@ export const createProduct = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
 
 export const updateProduct = async (req, res) => {
   try {
@@ -158,6 +160,8 @@ export const updateProduct = async (req, res) => {
       condition,
       productType,
       shopAddress,
+      latitude,
+      longitude,
       removeImages,
     } = req.body;
 
@@ -168,11 +172,13 @@ export const updateProduct = async (req, res) => {
     const finalProductType = productType || product.productType;
 
     if (finalProductType === "SHOP") {
+      const lat = req.body.latitude ?? product.latitude;
+      const lng = req.body.longitude ?? product.longitude;
       const address = shopAddress ?? product.shopAddress;
 
-      if (!address) {
+      if (!address || lat == null || lng == null) {
         return res.status(400).json({
-          message: "Shop location (address + coordinates) is required",
+          message: "Shop address and pinned location are required",
         });
       }
     }
@@ -235,9 +241,7 @@ export const updateProduct = async (req, res) => {
         brand: brand || undefined,
         warranty: warranty ?? null,
         discountPrice: discountPrice ? Number(discountPrice) : null,
-        stockInCount: stockInCount
-          ? parseInt(stockInCount, 10)
-          : undefined,
+        stockInCount: stockInCount ? parseInt(stockInCount, 10) : undefined,
         status: status || undefined,
         quickSale: quickSale === "true" || quickSale === true,
         condition: condition || undefined,
@@ -245,6 +249,18 @@ export const updateProduct = async (req, res) => {
         shopAddress:
           finalProductType === "SHOP"
             ? shopAddress ?? product.shopAddress
+            : null,
+        latitude:
+          finalProductType === "SHOP"
+            ? latitude
+              ? Number(latitude)
+              : product.latitude
+            : null,
+        longitude:
+          finalProductType === "SHOP"
+            ? longitude
+              ? Number(longitude)
+              : product.longitude
             : null,
         imageUrl: finalCover,
         images: finalGallery,
@@ -260,7 +276,6 @@ export const updateProduct = async (req, res) => {
     return res.status(500).json({ message: "Failed to update product" });
   }
 };
-
 
 export const getAllProducts = async (req, res) => {
   try {

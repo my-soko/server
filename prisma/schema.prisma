@@ -70,6 +70,8 @@ model Product {
   favorites     Favourite[]
   productType   ProductType  @default(INDIVIDUAL)
   shopAddress   String?
+  latitude      Float?   
+  longitude     Float? 
 }
 
 model Review {
