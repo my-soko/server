@@ -41,6 +41,10 @@ enum Condition {
   REFURBISHED
 }
 
+enum ProductType {
+  INDIVIDUAL
+  SHOP
+}
 
 model Product {
   id            String    @id @default(uuid())
@@ -52,6 +56,7 @@ model Product {
   stockTotal    Int? 
   category      String
   brand         String?
+  subItem       String?
   warranty      String?
   status        String    @default("onsale")
   quickSale     Boolean   @default(false)
@@ -64,6 +69,11 @@ model Product {
   reviews       Review[]
   payments      Payment[]
   favorites     Favourite[]
+  productType   ProductType  @default(INDIVIDUAL)
+  shopName      String? 
+  shopAddress   String?
+  latitude      Float?   
+  longitude     Float? 
 }
 
 model Review {
