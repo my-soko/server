@@ -28,6 +28,7 @@ export const createProduct = async (req, res) => {
       price,
       category,
       brand,
+      subItem,
       warranty,
       discountPrice,
       stockInCount,
@@ -36,6 +37,7 @@ export const createProduct = async (req, res) => {
       condition,
       imageUrls,
       productType,
+      shopName,
       shopAddress,
       latitude,
       longitude,
@@ -52,13 +54,13 @@ export const createProduct = async (req, res) => {
       return res.status(400).json({ message: "Invalid product type" });
     }
 
-   if (productType === "SHOP") {
-  if (latitude == null || longitude == null) {
-    return res.status(400).json({
-      message: "Shop location coordinates are required",
-    });
-  }
-}
+    if (productType === "SHOP") {
+      if (!shopName || !shopAddress || latitude == null || longitude == null) {
+        return res.status(400).json({
+          message: "Shop name, address, and pinned location are required",
+        });
+      }
+    }
 
     if (user.role !== "admin") {
       const payment = await prisma.payment.findFirst({
@@ -110,11 +112,13 @@ export const createProduct = async (req, res) => {
         stockTotal: Number(stockInCount),
         category,
         brand,
+        subItem,
         warranty: warranty || null,
         status: status || "onsale",
         quickSale: Boolean(quickSale),
         condition: condition || "BRAND_NEW",
         productType,
+        shopName: productType === "SHOP" ? shopName : null,
         shopAddress: productType === "SHOP" ? shopAddress : null,
         latitude: productType === "SHOP" ? Number(latitude) : null,
         longitude: productType === "SHOP" ? Number(longitude) : null,
@@ -152,6 +156,7 @@ export const updateProduct = async (req, res) => {
       description,
       category,
       brand,
+      subItem,
       warranty,
       discountPrice,
       stockInCount,
@@ -159,6 +164,7 @@ export const updateProduct = async (req, res) => {
       quickSale,
       condition,
       productType,
+      shopName,
       shopAddress,
       latitude,
       longitude,
@@ -175,10 +181,11 @@ export const updateProduct = async (req, res) => {
       const lat = req.body.latitude ?? product.latitude;
       const lng = req.body.longitude ?? product.longitude;
       const address = shopAddress ?? product.shopAddress;
+      const name = shopName ?? product.shopName;
 
-      if (!address || lat == null || lng == null) {
+      if (!name || !address || lat == null || lng == null) {
         return res.status(400).json({
-          message: "Shop address and pinned location are required",
+          message: "Shop name, address and pinned location are required",
         });
       }
     }
@@ -239,6 +246,7 @@ export const updateProduct = async (req, res) => {
         description: description?.trim() || undefined,
         category: category || undefined,
         brand: brand || undefined,
+        subItem: subItem || undefined,
         warranty: warranty ?? null,
         discountPrice: discountPrice ? Number(discountPrice) : null,
         stockInCount: stockInCount ? parseInt(stockInCount, 10) : undefined,
@@ -246,6 +254,9 @@ export const updateProduct = async (req, res) => {
         quickSale: quickSale === "true" || quickSale === true,
         condition: condition || undefined,
         productType: productType || undefined,
+        shopName:
+          finalProductType === "SHOP" ? shopName ?? product.shopName : null,
+
         shopAddress:
           finalProductType === "SHOP"
             ? shopAddress ?? product.shopAddress

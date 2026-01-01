@@ -56,6 +56,7 @@ model Product {
   stockTotal    Int? 
   category      String
   brand         String?
+  subItem       String?
   warranty      String?
   status        String    @default("onsale")
   quickSale     Boolean   @default(false)
@@ -69,6 +70,7 @@ model Product {
   payments      Payment[]
   favorites     Favourite[]
   productType   ProductType  @default(INDIVIDUAL)
+  shopName      String? 
   shopAddress   String?
   latitude      Float?   
   longitude     Float? 
