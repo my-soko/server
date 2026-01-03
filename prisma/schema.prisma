@@ -28,11 +28,11 @@ model User {
   passwordResetExpiry     DateTime?
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
-
   products Product[]
-  reviews  Review[] // <-- add this line
+  reviews  Review[] 
   Payment  Payment[]
   favorites   Favourite[]
+  shops     Shop[]  
 }
 
 enum Condition {
@@ -53,28 +53,30 @@ model Product {
   price         Float
   discountPrice Float?
   stockInCount  Int
-  stockTotal    Int? 
+  stockTotal    Int?
   category      String
   brand         String?
-  subItem       String?
+  subItem     String?      // add this
+  quickSale   Boolean?     // add this
   warranty      String?
   status        String    @default("onsale")
-  quickSale     Boolean   @default(false)
   condition     Condition @default(BRAND_NEW)
   imageUrl      String
   images        String[]
   sellerId      String
   seller        User      @relation(fields: [sellerId], references: [id])
+  shopId        String?
+  shop          Shop?     @relation(fields: [shopId], references: [id])
+
+  productType   ProductType @default(INDIVIDUAL)
+
+  reviews Review[]
+  payments Payment[]
+  favourites Favourite[]
+
   createdAt     DateTime  @default(now())
-  reviews       Review[]
-  payments      Payment[]
-  favorites     Favourite[]
-  productType   ProductType  @default(INDIVIDUAL)
-  shopName      String? 
-  shopAddress   String?
-  latitude      Float?   
-  longitude     Float? 
 }
+
 
 model Review {
   id        String    @id @default(uuid())
@@ -120,4 +122,29 @@ model Favourite {
 
   @@unique([userId, productId])
 }
+
+
+model Shop {
+  id              String   @id @default(uuid())
+  ownerId         String
+  owner           User     @relation(fields: [ownerId], references: [id])
+  name            String
+  description     String?
+  businessType    String   // e.g. "Limited Company", "Sole Proprietor"
+  registrationNo  String   // Legal registration number
+  taxPin          String?
+  isVerified      Boolean  @default(false)
+  address         String
+  latitude        Float
+  longitude       Float
+  phone           String
+  email           String?
+  website         String?
+  documents       String[] // uploaded certs (PDF/images)
+  products        Product[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  @@unique([ownerId, name])
+}
+
 

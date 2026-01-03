@@ -35,49 +35,48 @@ export const createProduct = async (req, res) => {
       status,
       quickSale,
       condition,
-      imageUrls,
       productType,
-      shopName,
-      shopAddress,
-      latitude,
-      longitude,
+      shopId,
+      imageUrls,
     } = req.body;
 
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-    });
-
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const userId = req.user.id;
 
     // 🔒 Validate product type
     if (!["INDIVIDUAL", "SHOP"].includes(productType)) {
       return res.status(400).json({ message: "Invalid product type" });
     }
 
+    // 🔐 SHOP product must belong to user's shop
     if (productType === "SHOP") {
-      if (!shopName || !shopAddress || latitude == null || longitude == null) {
-        return res.status(400).json({
-          message: "Shop name, address, and pinned location are required",
+      if (!shopId) {
+        return res.status(400).json({ message: "Shop is required" });
+      }
+
+      const shop = await prisma.shop.findFirst({
+        where: {
+          id: shopId,
+          ownerId: userId,
+          isVerified: true,
+        },
+      });
+
+      if (!shop) {
+        return res.status(403).json({
+          message: "Shop not found or not verified",
         });
       }
     }
 
-    if (user.role !== "admin") {
-      const payment = await prisma.payment.findFirst({
-        where: { userId: user.id, status: "completed" },
+    // WhatsApp check
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.whatsappNumber) {
+      return res.status(400).json({
+        message: "Add WhatsApp number before posting products",
       });
-      if (!payment) {
-        return res
-          .status(403)
-          .json({ message: "Payment required before posting a product" });
-      }
     }
 
-    if (!user.whatsappNumber) {
-      return res.status(400).json({
-        message: "Please add WhatsApp number before posting a product",
-      });
-    }
+    // Images
     const normalizedImageUrls = Array.isArray(imageUrls)
       ? imageUrls
       : imageUrls
@@ -86,7 +85,7 @@ export const createProduct = async (req, res) => {
 
     let finalImages = [...normalizedImageUrls];
 
-    if (req.files?.length > 0) {
+    if (req.files?.length) {
       const uploaded = await Promise.all(
         req.files.map((file) => uploadToCloudinary(file.buffer))
       );
@@ -94,13 +93,10 @@ export const createProduct = async (req, res) => {
     }
 
     if (!finalImages.length) {
-      return res
-        .status(400)
-        .json({ message: "Please upload at least one image" });
+      return res.status(400).json({ message: "At least one image required" });
     }
 
-    const coverImage = finalImages[0];
-    const galleryImages = finalImages.slice(1);
+    const [coverImage, ...galleryImages] = finalImages;
 
     const product = await prisma.product.create({
       data: {
@@ -113,18 +109,15 @@ export const createProduct = async (req, res) => {
         category,
         brand,
         subItem,
-        warranty: warranty || null,
+        warranty,
         status: status || "onsale",
         quickSale: Boolean(quickSale),
-        condition: condition || "BRAND_NEW",
+        condition,
         productType,
-        shopName: productType === "SHOP" ? shopName : null,
-        shopAddress: productType === "SHOP" ? shopAddress : null,
-        latitude: productType === "SHOP" ? Number(latitude) : null,
-        longitude: productType === "SHOP" ? Number(longitude) : null,
+        shopId: productType === "SHOP" ? shopId : null,
         imageUrl: coverImage,
         images: galleryImages,
-        seller: { connect: { id: user.id } },
+        sellerId: userId,
       },
     });
 
@@ -133,7 +126,7 @@ export const createProduct = async (req, res) => {
       product,
     });
   } catch (error) {
-    console.error("[CREATE PRODUCT ERROR]", error);
+    console.error("[CREATE PRODUCT]", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -141,11 +134,9 @@ export const createProduct = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-
     const product = await prisma.product.findUnique({ where: { id } });
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
+
+    if (!product) return res.status(404).json({ message: "Product not found" });
 
     if (product.sellerId !== req.user.id && req.user.role !== "admin") {
       return res.status(403).json({ message: "Unauthorized" });
@@ -164,10 +155,7 @@ export const updateProduct = async (req, res) => {
       quickSale,
       condition,
       productType,
-      shopName,
-      shopAddress,
-      latitude,
-      longitude,
+      shopId,
       removeImages,
     } = req.body;
 
@@ -175,116 +163,91 @@ export const updateProduct = async (req, res) => {
       return res.status(400).json({ message: "Invalid product type" });
     }
 
-    const finalProductType = productType || product.productType;
+    const finalType = productType || product.productType;
 
-    if (finalProductType === "SHOP") {
-      const lat = req.body.latitude ?? product.latitude;
-      const lng = req.body.longitude ?? product.longitude;
-      const address = shopAddress ?? product.shopAddress;
-      const name = shopName ?? product.shopName;
+    // 🔐 Validate shop ownership if SHOP
+    if (finalType === "SHOP") {
+      if (!shopId && !product.shopId) {
+        return res.status(400).json({ message: "Shop required" });
+      }
 
-      if (!name || !address || lat == null || lng == null) {
-        return res.status(400).json({
-          message: "Shop name, address and pinned location are required",
+      const shop = await prisma.shop.findFirst({
+        where: {
+          id: shopId || product.shopId,
+          ownerId: req.user.id,
+          isVerified: true,
+        },
+      });
+
+      if (!shop) {
+        return res.status(403).json({
+          message: "Shop not found or not verified",
         });
       }
     }
 
+    // 🔄 Image handling (unchanged logic)
     let finalGallery = product.images || [];
     let finalCover = product.imageUrl;
 
-    const removeImagesArray = removeImages
+    const remove = removeImages
       ? Array.isArray(removeImages)
         ? removeImages
         : JSON.parse(removeImages)
       : [];
 
-    if (removeImagesArray.length > 0) {
-      const deletePromises = removeImagesArray.map((url) => {
-        const publicId = getPublicIdFromUrl(url);
-        return publicId
-          ? cloudinary.uploader.destroy(publicId, { invalidate: true })
-          : Promise.resolve();
-      });
-
-      await Promise.all(deletePromises);
-
-      finalGallery = finalGallery.filter(
-        (img) => !removeImagesArray.includes(img)
+    if (remove.length) {
+      await Promise.all(
+        remove.map((url) => {
+          const pid = getPublicIdFromUrl(url);
+          return pid && cloudinary.uploader.destroy(pid);
+        })
       );
 
-      if (removeImagesArray.includes(finalCover)) {
+      finalGallery = finalGallery.filter((img) => !remove.includes(img));
+      if (remove.includes(finalCover)) {
         finalCover = finalGallery[0] || null;
       }
     }
 
-    if (req.files?.length > 0) {
-      const uploadedUrls = await Promise.all(
+    if (req.files?.length) {
+      const uploaded = await Promise.all(
         req.files.map((file) => uploadToCloudinary(file.buffer))
       );
-
-      finalGallery = [...finalGallery, ...uploadedUrls];
-
-      if (!finalCover) {
-        finalCover = uploadedUrls[0];
-      }
-    }
-
-    if (!finalCover && finalGallery.length > 0) {
-      finalCover = finalGallery[0];
+      finalGallery.push(...uploaded);
+      if (!finalCover) finalCover = uploaded[0];
     }
 
     if (!finalCover) {
-      return res
-        .status(400)
-        .json({ message: "Product must have at least one image" });
+      return res.status(400).json({ message: "Product needs an image" });
     }
-    const updatedProduct = await prisma.product.update({
+
+    const updated = await prisma.product.update({
       where: { id },
       data: {
-        title: title?.trim() || undefined,
-        description: description?.trim() || undefined,
-        category: category || undefined,
-        brand: brand || undefined,
-        subItem: subItem || undefined,
-        warranty: warranty ?? null,
+        title: title?.trim(),
+        description: description?.trim(),
+        category,
+        brand,
+        warranty,
         discountPrice: discountPrice ? Number(discountPrice) : null,
-        stockInCount: stockInCount ? parseInt(stockInCount, 10) : undefined,
-        status: status || undefined,
-        quickSale: quickSale === "true" || quickSale === true,
-        condition: condition || undefined,
-        productType: productType || undefined,
-        shopName:
-          finalProductType === "SHOP" ? shopName ?? product.shopName : null,
-
-        shopAddress:
-          finalProductType === "SHOP"
-            ? shopAddress ?? product.shopAddress
-            : null,
-        latitude:
-          finalProductType === "SHOP"
-            ? latitude
-              ? Number(latitude)
-              : product.latitude
-            : null,
-        longitude:
-          finalProductType === "SHOP"
-            ? longitude
-              ? Number(longitude)
-              : product.longitude
-            : null,
+        stockInCount: stockInCount ? Number(stockInCount) : undefined,
+        status,
+        condition,
+        productType: finalType,
+        shop:
+          finalType === "SHOP" && shopId
+            ? { connect: { id: shopId } }
+            : undefined,
         imageUrl: finalCover,
         images: finalGallery,
       },
     });
 
-    return res.json({
-      message: "Product updated successfully",
-      product: updatedProduct,
-    });
+    res.json({ message: "Product updated", product: updated });
   } catch (error) {
-    console.error("[UPDATE PRODUCT ERROR]", error);
-    return res.status(500).json({ message: "Failed to update product" });
+    console.error("[UPDATE PRODUCT]", error);
+    res.status(500).json({ message: "Failed to update product" });
   }
 };
 
