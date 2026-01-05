@@ -26,27 +26,23 @@ export const createShop = async (req, res) => {
 
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
-        cloudinary.uploader.upload_stream(
-              { resource_type: "auto", folder: "shops" },
-              (error, result) => {
-                  if (error) throw error;
-                  documents.push(result.secure_url);
-              }
-          );
-        // Use a promise wrapper for upload_stream
-        await new Promise((resolve, reject) => {
+        const url = await new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload_stream(
-            { resource_type: "auto", folder: "shops" },
+            {
+              resource_type: "raw",
+              folder: "shops",
+              use_filename: true,
+              unique_filename: true,
+            },
             (error, result) => {
-              if (error) reject(error);
-              else {
-                documents.push(result.secure_url);
-                resolve(result);
-              }
+              if (error) return reject(error);
+              resolve(result.secure_url);
             }
           );
+
           stream.end(file.buffer);
         });
+        documents.push(url);
       }
     }
 
@@ -108,22 +104,27 @@ export const updateShop = async (req, res) => {
         .json({ message: "Shop not found or you are not authorized" });
 
     // Upload new documents to Cloudinary
-    const newDocuments = [];
+    const documents = [];
+
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
-        await new Promise((resolve, reject) => {
+        const url = await new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload_stream(
-            { resource_type: "auto", folder: "shops" },
+            {
+              resource_type: "raw",
+              folder: "shops",
+              use_filename: true,
+              unique_filename: true,
+            },
             (error, result) => {
-              if (error) reject(error);
-              else {
-                newDocuments.push(result.secure_url);
-                resolve(result);
-              }
+              if (error) return reject(error);
+              resolve(result.secure_url);
             }
           );
+
           stream.end(file.buffer);
         });
+        documents.push(url);
       }
     }
 
@@ -141,7 +142,7 @@ export const updateShop = async (req, res) => {
         phone,
         email,
         website,
-        documents: newDocuments.length ? { set: newDocuments } : undefined, // only update if new files uploaded
+        documents: documents.length ? { set: documents } : undefined,
         updatedAt: new Date(),
       },
     });
@@ -184,11 +185,9 @@ export const getShopById = async (req, res) => {
 export const getAllShops = async (req, res) => {
   try {
     const shops = await prisma.shop.findMany({
-      where: {
-        isVerified: true, 
-      },
       include: {
-        products: true, 
+        products: true,
+        owner: true, // Include owner so we can display name in admin panel
       },
       orderBy: {
         createdAt: "desc",
@@ -202,3 +201,70 @@ export const getAllShops = async (req, res) => {
   }
 };
 
+// Get unverified shops
+export const getUnverified = async (req, res) => {
+  try {
+    const shops = await prisma.shop.findMany({
+      where: { isVerified: false },
+      include: { owner: true },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json(shops);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch unverified shops" });
+  }
+};
+
+// Verify a shop
+export const verifyShop = async (req, res) => {
+  try {
+    const shopId = req.params.id;
+    const shop = await prisma.shop.update({
+      where: { id: shopId },
+      data: { isVerified: true },
+    });
+    res.json(shop);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to verify shop" });
+  }
+};
+
+export const deleteShop = async (req, res) => {
+  try {
+    const shopId = req.params.id;
+    const shop = await prisma.shop.findUnique({ where: { id: shopId } });
+    if (!shop) return res.status(404).json({ message: "Shop not found" });
+
+    await prisma.shop.delete({ where: { id: shopId } });
+
+    res.json({ message: "Shop deleted successfully", id: shopId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to delete shop" });
+  }
+};
+
+export const adminDeleteShop = async (req, res) => {
+  try {
+    const shopId = req.params.id;
+
+    const shop = await prisma.shop.findUnique({
+      where: { id: shopId },
+    });
+
+    if (!shop) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+
+    await prisma.shop.delete({
+      where: { id: shopId },
+    });
+
+    res.json({ id: shopId, message: "Shop deleted successfully" });
+  } catch (error) {
+    console.error("Admin delete error:", error);
+    res.status(500).json({ message: "Failed to delete shop" });
+  }
+};
