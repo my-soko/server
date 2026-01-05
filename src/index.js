@@ -9,6 +9,7 @@ import reviewRoutes from "./routes/review.routes.js"
 import paymentRoutes from "./routes/payment.routes.js"
 import favouriteRoutes from "./routes/favourite.routes.js"
 import uploadRouter from "./routes/upload.js"
+import shopRoutes from "./routes/shop.routes.js"
 
 
 const app = express();
@@ -16,7 +17,7 @@ app.use(cookieParser());
 dotenv.config();
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: ["http://localhost:5173", "http://localhost:5174"],
     credentials: true,             
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"]
@@ -31,6 +32,7 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/favourite", favouriteRoutes);
 app.use("/api/upload", uploadRouter);
+app.use("/api/shops", shopRoutes);
 
 const PORT = process.env.PORT || 5000;
 
