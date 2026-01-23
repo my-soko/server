@@ -72,13 +72,13 @@ export const loginUser = async (req, res) => {
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       JWT_SECRET,
-      { expiresIn: "24h" }
+      { expiresIn: "2h" }
     );
 
     res.cookie("token", token, {
       httpOnly: true,
       secure: false,
-      sameSite: "strict",
+      sameSite: "lax",
     });
 
     return res.json({
@@ -106,6 +106,7 @@ export const fetchProfile = async (req, res) => {
         id: true,
         fullName: true,
         email: true,
+        role: true,
         whatsappNumber: true,
         profilePicture: true,
       },
@@ -287,7 +288,7 @@ export const googleLogin = async (req, res) => {
     const jwtToken = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn: "2h" }
     );
 
     // Send token in cookie
@@ -368,11 +369,12 @@ export const deleteUser = async (req, res) => {
   }
 };
 
-
-
-
-// Logout User
 export const logoutUser = (req, res) => {
-  res.clearCookie("token");
-  res.json({ message: "Logged out successfully" });
+  res.clearCookie("token", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+
+  res.json({ success: true, message: "Logged out successfully" });
 };

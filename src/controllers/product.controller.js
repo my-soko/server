@@ -1,5 +1,6 @@
 import prisma from "../config/prisma.js";
 import cloudinary from "../config/cloudinary.js";
+import { calculateShopRating } from "../utils/shopRating.js";
 
 const uploadToCloudinary = (fileBuffer) =>
   new Promise((resolve, reject) => {
@@ -299,10 +300,37 @@ export const getProductById = async (req, res) => {
         seller: {
           select: { fullName: true, email: true, whatsappNumber: true },
         },
+        shop: {
+          include: {
+            products: {
+              select: {
+                id: true,
+                reviews: {
+                  select: { rating: true },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
     if (!product) return res.status(404).json({ message: "Product not found" });
+
+    let shopWithRating = null;
+
+    if (product.shop) {
+      const rating = calculateShopRating(product.shop);
+
+      shopWithRating = {
+        ...product.shop,
+        averageRating: rating.averageRating,
+        totalReviews: rating.totalReviews,
+      };
+
+      // 🔥 Important: remove heavy products array if not needed
+      delete shopWithRating.products;
+    }
 
     res.json({
       ...product,

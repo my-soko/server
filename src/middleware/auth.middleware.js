@@ -3,28 +3,35 @@ import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
+
 export const authMiddleware = (req, res, next) => {
+  const token = req.cookies.token;
+
+  if (!token) {
+    return res.status(401).json({
+      code: "NO_TOKEN",
+      message: "Not authenticated",
+    });
+  }
+
   try {
-    let token = req.cookies?.token;
-
-    if (!token && req.headers.authorization?.startsWith("Bearer ")) {
-      token = req.headers.authorization.split(" ")[1];
-    }
-
-    if (!token) {
-      return res.status(401).json({ message: "Unauthorized: No token provided" });
-    }
-
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
-
     next();
-  } catch (error) {
-    console.error(error);
-    return res.status(401).json({ message: "Unauthorized: Invalid token" });
+  } catch (err) {
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({
+        code: "TOKEN_EXPIRED",
+        message: "Session expired",
+      });
+    }
+
+    return res.status(401).json({
+      code: "INVALID_TOKEN",
+      message: "Invalid token",
+    });
   }
 };
-
 
 export const adminOnly = (req, res, next) => {
   try {
@@ -41,4 +48,7 @@ export const adminOnly = (req, res, next) => {
     return res.status(500).json({ message: "An error occurred in admin middleware" });
   }
 };
+
+
+
 

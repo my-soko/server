@@ -1,0 +1,25 @@
+version: '3.9'
+
+services:
+  my_soko_db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Janta2025!
+      POSTGRES_DB: my_soko
+    ports:
+      - "5432:5432"
+    volumes:
+      - my_soko_data:/var/lib/postgresql/data
+
+  ecommerce-api:
+    build: .
+    container_name: ecommerce-api
+    env_file: .env
+    ports:
+      - "5000:5000"
+    depends_on:
+      - my_soko_db
+
+volumes:
+  my_soko_data:

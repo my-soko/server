@@ -10,11 +10,12 @@ import paymentRoutes from "./routes/payment.routes.js"
 import favouriteRoutes from "./routes/favourite.routes.js"
 import uploadRouter from "./routes/upload.js"
 import shopRoutes from "./routes/shop.routes.js"
+import { setupSwagger } from './config/swagger.js';
 
 
+dotenv.config();
 const app = express();
 app.use(cookieParser());
-dotenv.config();
 app.use(
   cors({
     origin: ["http://localhost:5173", "http://localhost:5174"],
@@ -25,6 +26,8 @@ app.use(
 );
 
 app.use(express.json());
+
+setupSwagger(app);
 
 app.use("/auth", authRoute);
 app.use("/api/product", productRoute);
@@ -45,7 +48,8 @@ const PORT = process.env.PORT || 5000;
     }
 })();
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT}`);
 });
+
 

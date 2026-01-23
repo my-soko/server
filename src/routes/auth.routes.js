@@ -17,4 +17,6 @@ router.post("/google-login", googleLogin);
 router.get("/users", authMiddleware, adminOnly, getAllUsers);
 router.put("/users/:id", authMiddleware, adminOnly, adminUpdateUser);
 router.delete("/users/:id", authMiddleware, adminOnly, deleteUser);
+
+
 export default router;
