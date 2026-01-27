@@ -291,14 +291,12 @@ export const googleLogin = async (req, res) => {
       { expiresIn: "2h" }
     );
 
-    // Send token in cookie
     res.cookie("token", jwtToken, {
       httpOnly: true,
       secure: false,
-      sameSite: "strict",
+      sameSite: "lax",
     });
 
-    // Send user info including profile picture
     return res.json({
       success: true,
       message: "Google login successful",
