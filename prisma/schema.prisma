@@ -14,25 +14,25 @@ datasource db {
 }
 
 model User {
-  id                      String    @id @default(uuid())
+  id                      String      @id @default(uuid())
   fullName                String
-  email                   String    @unique
+  email                   String      @unique
   password                String
-  role                    String    @default("user")
+  role                    String      @default("user")
   whatsappNumber          String?
   profilePicture          String?
-  emailVerified           Boolean   @default(false)
+  emailVerified           Boolean     @default(false)
   emailVerificationToken  String?
   emailVerificationExpiry DateTime?
   passwordResetToken      String?
   passwordResetExpiry     DateTime?
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
-  products Product[]
-  reviews  Review[] 
-  Payment  Payment[]
-  favorites   Favourite[]
-  shops     Shop[]  
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+  products                Product[]
+  reviews                 Review[]
+  Payment                 Payment[]
+  favorites               Favourite[]
+  shops                   Shop[]
 }
 
 enum Condition {
@@ -56,11 +56,12 @@ model Product {
   stockTotal    Int?
   category      String
   brand         String?
-  subItem     String?      // add this
-  quickSale   Boolean?     // add this
+  subItem       String? // add this
+  quickSale     Boolean? // add this
   warranty      String?
   status        String    @default("onsale")
   condition     Condition @default(BRAND_NEW)
+  colors        Json      @default("[]")
   imageUrl      String
   images        String[]
   sellerId      String
@@ -68,15 +69,14 @@ model Product {
   shopId        String?
   shop          Shop?     @relation(fields: [shopId], references: [id])
 
-  productType   ProductType @default(INDIVIDUAL)
+  productType ProductType @default(INDIVIDUAL)
 
-  reviews Review[]
-  payments Payment[]
+  reviews    Review[]
+  payments   Payment[]
   favourites Favourite[]
 
-  createdAt     DateTime  @default(now())
+  createdAt DateTime @default(now())
 }
-
 
 model Review {
   id        String    @id @default(uuid())
@@ -85,7 +85,7 @@ model Review {
   userId    String
   user      User      @relation(fields: [userId], references: [id])
   productId String
-  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)  // ✅ cascade here
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade) // ✅ cascade here
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   payments  Payment[]
@@ -93,23 +93,22 @@ model Review {
   @@unique([userId, productId])
 }
 
-
 model Payment {
-  id            String   @id @default(uuid())
-  amount        Float
-  currency      String   @default("KES")
-  status        String   @default("pending")
-  transactionId String?
-  checkoutRequestId String? 
-  userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  productId     String?
-  product       Product? @relation(fields: [productId], references: [id], onDelete: Cascade)  // ✅ cascade here
-  pendingProductData  Json? 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  Review        Review?  @relation(fields: [reviewId], references: [id])
-  reviewId      String?
+  id                 String   @id @default(uuid())
+  amount             Float
+  currency           String   @default("KES")
+  status             String   @default("pending")
+  transactionId      String?
+  checkoutRequestId  String?
+  userId             String
+  user               User     @relation(fields: [userId], references: [id])
+  productId          String?
+  product            Product? @relation(fields: [productId], references: [id], onDelete: Cascade) // ✅ cascade here
+  pendingProductData Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  Review             Review?  @relation(fields: [reviewId], references: [id])
+  reviewId           String?
 }
 
 model Favourite {
@@ -117,34 +116,32 @@ model Favourite {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)  // ✅ cascade here
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade) // ✅ cascade here
   createdAt DateTime @default(now())
 
   @@unique([userId, productId])
 }
 
-
 model Shop {
-  id              String   @id @default(uuid())
-  ownerId         String
-  owner           User     @relation(fields: [ownerId], references: [id])
-  name            String
-  description     String?
-  businessType    String   // e.g. "Limited Company", "Sole Proprietor"
-  registrationNo  String   // Legal registration number
-  taxPin          String?
-  isVerified      Boolean  @default(false)
-  address         String
-  latitude        Float
-  longitude       Float
-  phone           String
-  email           String?
-  website         String?
-  documents       String[] // uploaded certs (PDF/images)
-  products        Product[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String    @id @default(uuid())
+  ownerId        String
+  owner          User      @relation(fields: [ownerId], references: [id])
+  name           String
+  description    String?
+  businessType   String // e.g. "Limited Company", "Sole Proprietor"
+  registrationNo String // Legal registration number
+  taxPin         String?
+  isVerified     Boolean   @default(false)
+  address        String
+  latitude       Float
+  longitude      Float
+  phone          String
+  email          String?
+  website        String?
+  documents      String[] // uploaded certs (PDF/images)
+  products       Product[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
   @@unique([ownerId, name])
 }
-
-
