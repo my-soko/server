@@ -14,4 +14,5 @@ router.get("/product/:productId", getProductReviews);
 // Get logged-in user's review for a product
 router.get("/product/:productId/user", authMiddleware, getUserReview);
 
+
 export default router;

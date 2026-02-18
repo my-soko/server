@@ -47,12 +47,10 @@ export const createProduct = async (req, res) => {
 
     const userId = req.user.id;
 
-    // Validate product type
     if (!["INDIVIDUAL", "SHOP"].includes(productType)) {
       return res.status(400).json({ message: "Invalid product type" });
     }
 
-    // Shop validation for SHOP products
     if (productType === "SHOP") {
       if (!shopId) return res.status(400).json({ message: "Shop is required" });
 
@@ -65,7 +63,6 @@ export const createProduct = async (req, res) => {
           .json({ message: "Shop not found or not verified" });
     }
 
-    // WhatsApp check
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user?.whatsappNumber) {
       return res
@@ -196,12 +193,20 @@ export const updateProduct = async (req, res) => {
       if (remove.includes(finalCover)) finalCover = finalGallery[0] || null;
     }
 
+    // ✅ Prevent duplicate cover in gallery
     if (req.files?.length) {
       const uploaded = await Promise.all(
         req.files.map((file) => uploadToCloudinary(file.buffer)),
       );
-      finalGallery.push(...uploaded);
-      if (!finalCover) finalCover = uploaded[0];
+
+      if (!finalCover) {
+        // Old cover was removed → first new image becomes cover, rest go to gallery
+        finalCover = uploaded[0];
+        finalGallery.push(...uploaded.slice(1));
+      } else {
+        // Normal add → all new images go to gallery, keep existing cover
+        finalGallery.push(...uploaded);
+      }
     }
 
     if (!finalCover)
@@ -250,21 +255,55 @@ export const updateProduct = async (req, res) => {
 
 export const getAllProducts = async (req, res) => {
   try {
-    const products = await prisma.product.findMany({
-      include: {
-        seller: {
-          select: { fullName: true, email: true, whatsappNumber: true },
+    const {
+      search,
+      category,
+      brand,
+      page = 1,
+      limit = 10,
+    } = req.query;
+
+    const skip = (Number(page) - 1) * Number(limit);
+
+    // 🔥 Dynamic filters
+    const where = {
+      ...(search && {
+        OR: [
+          { title: { contains: search, mode: "insensitive" } },
+          { description: { contains: search, mode: "insensitive" } },
+        ],
+      }),
+      ...(category && { category }),
+      ...(brand && { brand }),
+    };
+
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        skip,
+        take: Number(limit),
+        orderBy: { createdAt: "desc" },
+        include: {
+          seller: {
+            select: {
+              fullName: true,
+              email: true,
+              whatsappNumber: true,
+            },
+          },
+          reviews: {
+            select: { rating: true },
+          },
         },
-        reviews: {
-          select: { rating: true },
-        },
-      },
-    });
+      }),
+      prisma.product.count({ where }),
+    ]);
 
     const productsWithExtras = products.map((p) => {
       const avgRating =
         p.reviews.length > 0
-          ? p.reviews.reduce((sum, r) => sum + r.rating, 0) / p.reviews.length
+          ? p.reviews.reduce((sum, r) => sum + r.rating, 0) /
+            p.reviews.length
           : 0;
 
       return {
@@ -274,17 +313,23 @@ export const getAllProducts = async (req, res) => {
         whatsappLink: `https://wa.me/${
           p.seller.whatsappNumber
         }?text=${encodeURIComponent(
-          `Hi, I'm interested in your product: ${p.title}\nDescription: ${p.description}\nPrice: $${p.price}\nImage: ${p.imageUrl}`,
+          `Hi, I'm interested in your product: ${p.title}`
         )}`,
       };
     });
 
-    res.json(productsWithExtras);
+    res.json({
+      products: productsWithExtras,
+      total,
+      page: Number(page),
+      totalPages: Math.ceil(total / limit),
+    });
   } catch (error) {
-    console.error(error);
+    console.error("[GET PRODUCTS]", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 export const getProductById = async (req, res) => {
   try {
@@ -323,8 +368,6 @@ export const getProductById = async (req, res) => {
         averageRating: rating.averageRating,
         totalReviews: rating.totalReviews,
       };
-
-      // 🔥 Important: remove heavy products array if not needed
       delete shopWithRating.products;
     }
 
